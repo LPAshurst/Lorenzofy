@@ -10,6 +10,8 @@ from json.decoder import JSONDecodeError
 from dotenv import load_dotenv
 from spotipy.oauth2 import SpotifyOAuth
 import pprint
+import sounddevice as sd
+import vosk
 
 scope = "user-read-playback-state,user-modify-playback-state"
 load_dotenv()
@@ -36,7 +38,7 @@ name_query = input("Enter the name of the song you would like to hear: ")
 
 search_query = f'track:{name_query}'
 #So the limit is only one so its only finding one song rn
-results = sp.search(q=search_query, type='track', limit=1)
+results = sp.search(q=search_query, type='track', limit=5)
 
 # print(json.dumps(results, indent=4))
 track_uri = results['tracks']['items'][0]['uri']
