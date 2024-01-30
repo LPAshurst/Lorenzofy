@@ -12,7 +12,16 @@ from spotipy.oauth2 import SpotifyOAuth
 import pprint
 import sounddevice as sd
 import vosk
+import queue
+import time
+import threading
 
+trigger_word = 'fortnight'
+play = 'play'
+different_bys = ["bye", "by", "buy"]
+finding_song = False
+
+q = queue.Queue()
 scope = "user-read-playback-state,user-modify-playback-state"
 load_dotenv()
 
@@ -40,65 +49,79 @@ pprint.pprint(devices_found)
 # args.samplerate = int(device_info['default_samplerate'])
 
 
-try:
-    with sd.RawInputStream(samplerate=args.samplerate, blocksize=8000, device=args.device, dtype='int16',
-                            channels=1, callback=callback):
-            print('#' * 80)
-            print('Press Ctrl+C to stop the recording')
-            print('#' * 80)
+def callback(indata, frames, time, status):
+    """This is called (from a separate thread) for each audio block."""
+    if status:
+        print(status, file=sys.stderr)
+    q.put(bytes(indata))
 
-            rec = vosk.KaldiRecognizer(model, args.samplerate)
-            while True:
-                data = q.get()
-                if rec.AcceptWaveform(data):
-                    print('result')
-                    result = json.loads(rec.Result())
-                    print(result)
-                else:
-                    result = json.loads(rec.PartialResult())
-                    print('partial')
-                    print(result['partial'])
-                    for token in result['partial'].upper().split():
-                        if token in trigger_to_song:
-                            just_now = time.time()
-                            if most_recent_play is None or minimum_delta < just_now - most_recent_play:
-                                most_recent_play = just_now
-                                track = trigger_to_song[token]['track']
-                                # FIXME: consider storing whatever was already playing and resuming that after the interruption
-                                try:
-                                    sp.start_playback(uris=[track['uri']],
-                                                    device_id='6fde915182d81765570c865de2361439b180d562',  # FIXME: what to do here??
-                                                    position_ms=track['start'])
-                                    sleep(s_from_ms(track['stop'] - track['start']))
-                                    sp.pause_playback()
-                                except:
-                                    print("Unexpected error:", sys.exc_info()[0])
-                if dump_fn is not None:
-                    dump_fn.write(data)
+def play_song(full_sentence):
+    finding_song = True
+    #These first two checks seem kind of dumb but its to make sure we are using the right keywords to play songs
+                
+    found_index = None
+
+    if (len(full_sentence) >= 2) and (full_sentence[0] == trigger_word and full_sentence[1] == play):
+        print("Im getting here xD")
+        for index, string in enumerate(full_sentence):
+            for by in different_bys:
+                if by in string:
+                    found_index = index
+                    break
+                
+        if found_index == None:
+            name_query = full_sentence[2:]
+            print(name_query)
+            #plays just song but no artist
+
+            search_query = f'track:{name_query}'
+            #So the limit is only one so its only finding one song rn
+            results = sp.search(q=search_query, type='track', limit=5)
+
+            # print(json.dumps(results, indent=4))
+            track_uri = results['tracks']['items'][0]['uri']
+            sp.start_playback(device_id=device_id, uris=[track_uri])
+            finding_song = False
+        else:
+            name_query = full_sentence[2:found_index]
+            artist = full_sentence[found_index + 1:]
+            search_query = f'artist:{artist} track:{name_query}'
+            results = sp.search(q=search_query, type='track', limit=5)
+            track_uri = results['tracks']['items'][0]['uri']
+            sp.start_playback(device_id=device_id, uris=[track_uri])
+          
+
+try:
+    stream = sd.RawInputStream(samplerate=44100, blocksize=8000, device=1, dtype='int16',
+                           channels=1, callback=callback)
+    with stream:
+        print('#' * 80)
+        print('Press Ctrl+C to stop the recording')
+        print('#' * 80)
+    
+        rec = vosk.KaldiRecognizer(model, 44100)
+        while True:
+            data = q.get()
+
+            #I dont like this implementation. Maybe introduce threading?
+            if rec.AcceptWaveform(data):
+                # This is just a dictionary that stores all the words in one "sentence". Im guessing there is 
+                # some leinency to how long a pause can be between sentences but I can figure that out later
+                result = json.loads(rec.Result())
+                print(result)
+                full_sentence = result['text'].split(' ')
+                play_song(full_sentence=full_sentence)
+                time.sleep(1)
+            else:
+                continue
+            #     #This is the extra shit thats getting printed
+            #     result = json.loads(rec.PartialResult())
+            #     print('partial')
+            #     print(result['partial'])
+            #     # for token in result['partial'].upper().split():
+            #     #     track = trigger_to_song[token]['track']
+            #     #         # FIXME: consider storing whatever was already playing and resuming that after the interruption
+            #     #         #Need to add the actual code to start playing shit in this if statement
 
 except KeyboardInterrupt:
     print('\nDone')
-
-    sd.DeviceList()
-
-    # search_query = f'track:{name_query}'
-    # #So the limit is only one so its only finding one song rn
-    # results = sp.search(q=search_query, type='track', limit=5)
-
-    # # print(json.dumps(results, indent=4))
-    # track_uri = results['tracks']['items'][0]['uri']
-    # sp.start_playback(device_id=device_id, uris=[track_uri])
-
-
-
-    # # Print the first track found
-    # if len(results['tracks']['items']) > 0:
-    #     track = results['tracks']['items'][0]
-    #     print(f"Track Name: {track['name']}")
-    #     print(f"Artist: {track['artists'][0]['name']}")
-    #     print(f"Album: {track['album']['name']}")
-    # else:
-    #     print(f"No results found for '{track_name}'")
-    # # playlist_id = 'spotify:album:69MkRYEzxiZ84QmgmPJqdY'
-    # # results = sp.album(playlist_id)
-    # # print(json.dumps(results, indent=4))
