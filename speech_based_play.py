@@ -16,10 +16,10 @@ import queue
 import time
 import threading
 
-trigger_word = 'fortnight'
+trigger_word = 'hey'
 play = 'play'
 different_bys = ["bye", "by", "buy"]
-finding_song = False
+
 
 q = queue.Queue()
 scope = "user-read-playback-state,user-modify-playback-state"
@@ -56,7 +56,6 @@ def callback(indata, frames, time, status):
     q.put(bytes(indata))
 
 def play_song(full_sentence):
-    finding_song = True
     #These first two checks seem kind of dumb but its to make sure we are using the right keywords to play songs
                 
     found_index = None
@@ -81,7 +80,6 @@ def play_song(full_sentence):
             # print(json.dumps(results, indent=4))
             track_uri = results['tracks']['items'][0]['uri']
             sp.start_playback(device_id=device_id, uris=[track_uri])
-            finding_song = False
         else:
             name_query = full_sentence[2:found_index]
             artist = full_sentence[found_index + 1:]
@@ -90,7 +88,6 @@ def play_song(full_sentence):
             track_uri = results['tracks']['items'][0]['uri']
             sp.start_playback(device_id=device_id, uris=[track_uri])
           
-
 try:
     stream = sd.RawInputStream(samplerate=44100, blocksize=8000, device=1, dtype='int16',
                            channels=1, callback=callback)
