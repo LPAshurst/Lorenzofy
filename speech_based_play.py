@@ -16,10 +16,12 @@ import queue
 import time
 import threading
 
+# These are keywords that allow you to actually talk to the spotify API
+# An example invocation would be "hey play dogs by pink floyd".
 trigger_word = 'hey'
 play = 'play'
 different_bys = ["bye", "by", "buy"]
-
+finding_song = False
 
 q = queue.Queue()
 scope = "user-read-playback-state,user-modify-playback-state"
@@ -34,9 +36,9 @@ sp = spotipy.Spotify(client_credentials_manager=SpotifyOAuth(client_id=client_id
 
 devices = sp.devices()
 id_list = []
-for index, thing in enumerate(devices['devices']):
-    print(f"Device Number: {index + 1}\nDevice name: {thing['name']}, Device Type: {thing['type']}")
-    id_list.append(thing['id'])
+for index, device in enumerate(devices['devices']):
+    print(f"Device Number: {index + 1}\nDevice name: {device['name']}, Device Type: {device['type']}")
+    id_list.append(device['id'])
 
 which_id = int(input("\nPlease enter the device number you would like to play music on: "))
 
@@ -44,10 +46,6 @@ device_id = id_list[which_id - 1]
 
 model = vosk.Model("./model")
 devices_found = sd.query_devices(kind="input")
-print(len(devices_found))
-pprint.pprint(devices_found)
-# args.samplerate = int(device_info['default_samplerate'])
-
 
 def callback(indata, frames, time, status):
     """This is called (from a separate thread) for each audio block."""
@@ -61,7 +59,7 @@ def play_song(full_sentence):
     found_index = None
 
     if (len(full_sentence) >= 2) and (full_sentence[0] == trigger_word and full_sentence[1] == play):
-        print("Im getting here xD")
+        
         for index, string in enumerate(full_sentence):
             for by in different_bys:
                 if by in string:
@@ -81,12 +79,15 @@ def play_song(full_sentence):
             track_uri = results['tracks']['items'][0]['uri']
             sp.start_playback(device_id=device_id, uris=[track_uri])
         else:
+            
+            # Thse few lines of code seperates the song and the artist and attempts to find the query
             name_query = full_sentence[2:found_index]
             artist = full_sentence[found_index + 1:]
             search_query = f'artist:{artist} track:{name_query}'
             results = sp.search(q=search_query, type='track', limit=5)
             track_uri = results['tracks']['items'][0]['uri']
             sp.start_playback(device_id=device_id, uris=[track_uri])
+          
           
 try:
     stream = sd.RawInputStream(samplerate=44100, blocksize=8000, device=1, dtype='int16',
@@ -99,7 +100,6 @@ try:
         rec = vosk.KaldiRecognizer(model, 44100)
         while True:
             data = q.get()
-
             #I dont like this implementation. Maybe introduce threading?
             if rec.AcceptWaveform(data):
                 # This is just a dictionary that stores all the words in one "sentence". Im guessing there is 
@@ -111,14 +111,7 @@ try:
                 time.sleep(1)
             else:
                 continue
-            #     #This is the extra shit thats getting printed
-            #     result = json.loads(rec.PartialResult())
-            #     print('partial')
-            #     print(result['partial'])
-            #     # for token in result['partial'].upper().split():
-            #     #     track = trigger_to_song[token]['track']
-            #     #         # FIXME: consider storing whatever was already playing and resuming that after the interruption
-            #     #         #Need to add the actual code to start playing shit in this if statement
+
 
 except KeyboardInterrupt:
     print('\nDone')
