@@ -60,6 +60,7 @@ def play_song(full_sentence):
 
     if (len(full_sentence) >= 2) and (full_sentence[0] == trigger_word and full_sentence[1] == play):
         
+        
         for index, string in enumerate(full_sentence):
             for by in different_bys:
                 if by in string:
@@ -75,7 +76,6 @@ def play_song(full_sentence):
             #So the limit is only one so its only finding one song rn
             results = sp.search(q=search_query, type='track', limit=5)
 
-            # print(json.dumps(results, indent=4))
             track_uri = results['tracks']['items'][0]['uri']
             sp.start_playback(device_id=device_id, uris=[track_uri])
         else:
@@ -87,6 +87,7 @@ def play_song(full_sentence):
             results = sp.search(q=search_query, type='track', limit=5)
             track_uri = results['tracks']['items'][0]['uri']
             sp.start_playback(device_id=device_id, uris=[track_uri])
+          
           
           
 try:
@@ -111,6 +112,7 @@ try:
                 time.sleep(1)
             else:
                 continue
+
 
 
 except KeyboardInterrupt:
