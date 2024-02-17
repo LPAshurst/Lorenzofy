@@ -11,7 +11,7 @@ SPOTIPY_REDIRECT_URI='https://google.com/' (This link should be used in your spo
 
 One useful thing to keep in mind is that the following packages should be installed before using this project:
 ```
-pip install dotenv
+pip install python-dotenv
 pip install sounddevice
 pip install spotipy --upgrade
 pip install vosk
